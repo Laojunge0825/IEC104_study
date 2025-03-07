@@ -1,8 +1,10 @@
 package master;
 
 import cn.hutool.core.convert.Convert;
+import core.BasicInstruction104;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 
@@ -22,7 +24,15 @@ public class IEC104ClientHandler extends ChannelInboundHandlerAdapter {
         // 04：APDU长度（后续4字节）
         // 07：控制域（U帧，07表示STARTDT激活）
         byte[] uFrame = new byte[]{0x68, 0x04, 0x07, 0x00, 0x00, 0x00};
-        ctx.writeAndFlush(Unpooled.copiedBuffer(uFrame));
+        ChannelFuture channelFuture = ctx.writeAndFlush(Unpooled.copiedBuffer(uFrame));
+        // 2. 等待U帧确认（服务端回复0B 00）
+        channelFuture.addListener(future -> {
+            if (future.isSuccess()) {
+                System.out.println("U帧发送成功，等待服务端确认...");
+            } else {
+                System.out.println("U帧发送失败：" + future.cause().getMessage());
+            }
+        });
         System.out.println("客户端发送U帧：" + Convert.toStr(uFrame));
     }
 
@@ -34,7 +44,7 @@ public class IEC104ClientHandler extends ChannelInboundHandlerAdapter {
         System.out.println("客户端收到报文: " + Convert.toStr(data));
 
         // 3. 处理U帧确认（服务端回复0B 00）
-        if (data[2] == 0x0B) {
+        if (data[0] == 0x0B) {
             System.out.println("链路激活成功，开始发送I帧数据...");
             sendIFrame(ctx); // 发送第一条I帧
         }

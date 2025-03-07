@@ -9,6 +9,8 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
+import io.netty.handler.logging.LogLevel;
+import io.netty.handler.logging.LoggingHandler;
 import slave.IEC104ServerHandler;
 
 /**
@@ -35,15 +37,16 @@ public class IEC104Client {
                    ch.pipeline() //配置责任链模式
                            // 解决TCP粘包/拆包：基于长度字段的帧解码器
                            // 参数说明：最大长度255，长度字段偏移量2，长度字段长度1字节
-                           // 长度调整值-3（因IEC 104报文头为2字节起始符+1字节长度）
-                           // 跳过初始字节0（直接处理有效数据）
-                           .addLast(new LengthFieldBasedFrameDecoder(255, 2, 1, -3, 0))
+                           // 跳过初始字节0
+                           .addLast(new LengthFieldBasedFrameDecoder(255, 1, 1, 0, 0))
+                           // - 日志处理器：记录通信报文
+                           .addLast(new LoggingHandler(LogLevel.INFO))
                            // 添加自定义协议处理器
                            .addLast(new IEC104ClientHandler());
                    // 扩展点：可在此处添加更多处理器，如：
                    // - 编码器：将Java对象编码为字节流
                    // - 解码器：将字节流解析为Java对象
-                   // - 日志处理器：记录通信报文
+
                }
            });
            // 4. 连接服务器
