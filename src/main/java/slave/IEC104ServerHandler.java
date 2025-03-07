@@ -18,25 +18,31 @@ public class IEC104ServerHandler extends SimpleChannelInboundHandler<ByteBuf> {
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, ByteBuf msg)  {
-        // 1. 读取接收到的字节数据,将ByteBuf转换为字节数组
-        byte[] data = new byte[msg.readableBytes()];
-        msg.readBytes(data);
-        System.out.println("接收到的字节数据：" + Convert.toStr(data));
+        try{
+            // 1. 读取接收到的字节数据,将ByteBuf转换为字节数组
+            byte[] data = new byte[msg.readableBytes()];
+            msg.readBytes(data);
 
-        // 2. 解析控制域（第三字节，索引为2），判断帧类型
-        byte controlByte = data[2];
-        if ((controlByte & 0x03) == 0x03) {
-            handleUFrame(ctx, data);
-        }
-        // 2.2 判断帧类型：S帧（最低位为1）
-        else if ((controlByte & 0x01) == 0x01) {
-            handleSFrame(ctx, data);
-        }
-        // 2.3 判断帧类型：I帧（最低两位为00）
-        else {
-            handleIFrame(ctx, data);
-        }
+            // 2. 解析控制域（第三字节，索引为2），判断帧类型
+            byte controlByte = data[2];
+            if ((controlByte & 0x03) == 0x03) {
+                handleUFrame(ctx, data);
+            }
+            // 2.2 判断帧类型：S帧（最低位为1）
+            else if ((controlByte & 0x01) == 0x01) {
+                handleSFrame(ctx, data);
+            }
+            // 2.3 判断帧类型：I帧（最低两位为00）
+            else {
+                handleIFrame(ctx, data);
+            }
 
+        }finally{
+            // 释放ByteBuf内存
+//            msg.release();  // ❌ SimpleChannelInboundHandler已自动释放！
+//            SimpleChannelInboundHandler会自动释放传入的ByteBuf，
+//            如果在代码中再次手动释放（比如调用msg.release()），会导致引用计数变为负数
+        }
     }
 
     // 处理U帧（链路控制）
@@ -49,9 +55,11 @@ public class IEC104ServerHandler extends SimpleChannelInboundHandler<ByteBuf> {
             // 04：APDU长度（后续4字节）
             // 0B：控制域（U帧确认，0B表示STARTDT确认）
             // 00 00：保留字段
-            byte[] resp = new byte[]{0x68, 0x04, 0x0B, 0x00, 0x00, 0x00};
-            ctx.writeAndFlush(Unpooled.copiedBuffer(resp));
-            System.out.println("服务端回复U帧确认：STARTDT激活成功");
+            if (data.length >= 6 && data[2] == 0x07) {
+                byte[] resp = new byte[]{0x68, 0x04, 0x0B, 0x00, 0x00, 0x00};
+                ctx.writeAndFlush(Unpooled.copiedBuffer(resp));
+                System.out.println("服务端回复U帧确认：STARTDT激活成功");
+            }
         }
     }
 
@@ -80,6 +88,6 @@ public class IEC104ServerHandler extends SimpleChannelInboundHandler<ByteBuf> {
                 (byte) ((receiveSeq >> 7) & 0xFF)    // 高8位直接右移7位
         };
         ctx.writeAndFlush(Unpooled.copiedBuffer(sFrame));
-        System.out.println("服务端回复S帧确认，N(R)=" + receiveSeq);
+        System.out.println("服务端收到I帧，回复S帧确认，N(R)=" + receiveSeq);
     }
 }

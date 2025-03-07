@@ -8,6 +8,8 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
+import io.netty.handler.logging.LogLevel;
+import io.netty.handler.logging.LoggingHandler;
 
 /**
  * @author 舒克、舒克
@@ -34,9 +36,11 @@ public class IEC104Server {
                           ch.pipeline()
                                   // 2.1 解决TCP粘包/拆包：基于长度字段的帧解码器
                                   // 参数说明：最大长度255，长度字段偏移量2，长度字段长度1字节
-                                  // 长度调整值-3（因IEC 104报文头为2字节起始符+1字节长度）
-                                  // 跳过初始字节0（直接处理有效数据）
-                                  .addLast(new LengthFieldBasedFrameDecoder(255, 2, 1, -3, 0))
+                                  // 长度调整值 0（因IEC 104报文头为2字节起始符+1字节长度）
+                                  // 跳过初始字节 2（直接处理有效数据）
+                                  .addLast(new LengthFieldBasedFrameDecoder(255, 1, 1, 0, 0))
+                                  // 日志处理器
+                                  .addLast(new LoggingHandler(LogLevel.INFO))
                                   // 2.2 自定义协议处理器
                                   .addLast(new IEC104ServerHandler());
 
@@ -44,6 +48,13 @@ public class IEC104Server {
                    }); // 子处理器，用于处理workerGroup
             // 3. 绑定端口，开始接收连接
             ChannelFuture future = bootstrap.bind(2404).sync();
+            future.addListener(future1 -> {
+                if (future1.isSuccess()) {
+                    System.out.println("服务端启动成功，监听端口2404...");
+                } else {
+                    System.out.println("服务端启动失败：" + future1.cause().getMessage());
+                }
+            });
             System.out.println("服务端启动，监听端口2404...");
             future.channel().closeFuture().sync();
         }   catch (Exception e){
